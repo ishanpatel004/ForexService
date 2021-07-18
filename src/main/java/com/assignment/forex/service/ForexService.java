@@ -48,17 +48,9 @@ public class ForexService {
 
     public LinkedHashMap<String, Object> getCurrencyRateByDate(String date, String base, String symbols) {
         JSONObject currencyListObj = new JSONObject();
-        LinkedHashMap<String, Object> response = new LinkedHashMap<>();
 
-        if (!validateDate(date)) {
-            return new LinkedHashMap<String, Object>(getErrorResponseObj(CODE, ERROR_CODE_302, INFO, ERROR_CODE_302_DESCRIPTION));
-        }
-
-        Optional<LinkedHashMap<String, Object>> resp = validateCurrencCodeAndlist(base, symbols);
-        if (resp.isPresent()) {
-            return new LinkedHashMap<String, Object>(resp.get());
-        }
-
+        LinkedHashMap<String, Object> response = validateInputForCurrencyRateByDate(date, base, symbols);
+        if (response != null) return response;
 
         List<CurrencyRate> currencyRateList;
         if (!Strings.isNullOrEmpty(symbols)) {
@@ -67,6 +59,7 @@ public class ForexService {
             currencyRateList = currencyRateRepository.findByCurrencyRateDateAndFromCurrencyCode(parseDate(date), base);
         }
         JSONObject ratesObj = new JSONObject();
+        response = new LinkedHashMap<>();
         currencyRateList.stream().forEach(currencyRate -> ratesObj.put(currencyRate.getToCurrencyCode(), currencyRate.getEodRate()));
         response.put("success", true);
         //response.put("timestamp", new Timestamp(System.currentTimeMillis()));
@@ -80,17 +73,28 @@ public class ForexService {
         return response;
     }
 
-    public LinkedHashMap<String, Object> getTimeSeriesCurrencyRates(String startDate, String endDate, String base, String symbols) {
-        LinkedHashMap<String, Object> response = new LinkedHashMap<>();
-
-        if (!validateDate(startDate) || !validateDate(endDate)) {
-            return new LinkedHashMap<String, Object>(getErrorResponseObj(CODE, ERROR_CODE_302, INFO, ERROR_CODE_302_DESCRIPTION));
+    private LinkedHashMap<String, Object> validateInputForCurrencyRateByDate(String date, String base, String symbols) {
+        if (!isDatePresent(date)) {
+            return getErrorResponseObj(CODE, ERROR_CODE_301, INFO, ERROR_CODE_301_DESCRIPTION);
         }
-
+        if (!isBasePresent(base)) {
+            return getErrorResponseObj(CODE, ERROR_CODE_203, INFO, ERROR_CODE_203_DESCRIPTION);
+        }
+        if (!validateDate(date)) {
+            return getErrorResponseObj(CODE, ERROR_CODE_302, INFO, ERROR_CODE_302_DESCRIPTION);
+        }
         Optional<LinkedHashMap<String, Object>> resp = validateCurrencCodeAndlist(base, symbols);
         if (resp.isPresent()) {
-            return new LinkedHashMap<String, Object>(resp.get());
+            return resp.get();
         }
+        return null;
+    }
+
+
+    public LinkedHashMap<String, Object> getTimeSeriesCurrencyRates(String startDate, String endDate, String base, String symbols) {
+
+        LinkedHashMap<String, Object> response = validateInputForFetchingTimeSeriesCurrencyRate(startDate, endDate, base, symbols);
+        if (response != null) return response;
 
         List<CurrencyRate> currencyRateList = null;
         Date stDate = parseDate(startDate);
@@ -98,7 +102,7 @@ public class ForexService {
         long diffInMillies = Math.abs(edDate.getTime() - stDate.getTime());
         long diff = TimeUnit.DAYS.convert(diffInMillies, TimeUnit.MILLISECONDS);
         if (diff > 365) {
-            return new LinkedHashMap<String, Object>(getErrorResponseObj(CODE, ERROR_CODE_505, INFO, ERROR_CODE_505_DESCRIPTION));
+            return getErrorResponseObj(CODE, ERROR_CODE_505, INFO, ERROR_CODE_505_DESCRIPTION);
         }
 
         if (symbols != null) {
@@ -119,6 +123,7 @@ public class ForexService {
             }
 
         });
+        response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("timeseries", true);
         response.put("start_date", startDate);
@@ -128,18 +133,31 @@ public class ForexService {
         return response;
     }
 
-    public LinkedHashMap<String, Object> convertCurrencyRate(String from, String to, Double amount, String date) {
-        LinkedHashMap<String, Object> response = new LinkedHashMap<>();
-
-        if (!validateCurrencyCode(from) || !validateCurrencyCode(to)) {
-            return getErrorResponseObj(CODE, ERROR_CODE_201, INFO, ERROR_CODE_201_DESCRIPTION);
+    private LinkedHashMap<String, Object> validateInputForFetchingTimeSeriesCurrencyRate(String startDate, String endDate, String base, String symbols) {
+        if (!isDatePresent(startDate) || (startDate != null && !validateDate(startDate))) {
+            return getErrorResponseObj(CODE, ERROR_CODE_502, INFO, ERROR_CODE_502_DESCRIPTION);
+        }
+        if (!isDatePresent(endDate) || (endDate != null && !validateDate(endDate))) {
+            return getErrorResponseObj(CODE, ERROR_CODE_503, INFO, ERROR_CODE_503_DESCRIPTION);
+        }
+        if (!isBasePresent(base)) {
+            return getErrorResponseObj(CODE, ERROR_CODE_203, INFO, ERROR_CODE_203_DESCRIPTION);
         }
 
-        if (date != null && !validateDate(date)) {
-            return getErrorResponseObj(CODE, ERROR_CODE_302, INFO, ERROR_CODE_302_DESCRIPTION);
+        Optional<LinkedHashMap<String, Object>> resp = validateCurrencCodeAndlist(base, symbols);
+        if (resp.isPresent()) {
+            return resp.get();
         }
+        return null;
+    }
+
+    public LinkedHashMap<String, Object> convertCurrencyRate(String from, String to, String amount, String date) {
+        LinkedHashMap<String, Object> response = validateInputForConvertingCurrencyRate(from, to, date, amount);
+        if (response != null) return response;
 
         CurrencyRate currencyRate = null;
+        response = new LinkedHashMap<>();
+
         if (date != null) {
             currencyRate = currencyRateRepository.findByCurrencyRateDateAndFromCurrencyCodeAndToCurrencyCode(parseDate(date), from, to);
         } else {
@@ -149,11 +167,31 @@ public class ForexService {
             response.put("success", true);
             response.put("timestamp", currencyRate.getLastModifiedDate());
             response.put("date", date == null ? new Date(System.currentTimeMillis()) : date);
-            response.put("result", currencyRate.getCurrentRate() * amount);
+            response.put("result", currencyRate.getCurrentRate() * Double.parseDouble(amount));
         } else {
             response = getErrorResponseObj(CODE, ERROR_CODE_106, INFO, ERROR_CODE_106_DESCRIPTION);
         }
 
         return response;
+    }
+
+    private LinkedHashMap<String, Object> validateInputForConvertingCurrencyRate(String from, String to, String date, String amount) {
+        if (!isBasePresent(from) || (from != null && !validateCurrencyCode(from))) {
+            return getErrorResponseObj(CODE, ERROR_CODE_506, INFO, ERROR_CODE_506_DESCRIPTION);
+        }
+        if (to == null || (to != null && !validateCurrencyCode(to))) {
+            return getErrorResponseObj(CODE, ERROR_CODE_507, INFO, ERROR_CODE_507_DESCRIPTION);
+        }
+
+        if (date != null && !validateDate(date)) {
+            return getErrorResponseObj(CODE, ERROR_CODE_302, INFO, ERROR_CODE_302_DESCRIPTION);
+        }
+
+        try {
+            Double.parseDouble(amount);
+        } catch (NumberFormatException | NullPointerException ex) {
+            return getErrorResponseObj(CODE, ERROR_CODE_403, INFO, ERROR_CODE_403_DESCRIPTION);
+        }
+        return null;
     }
 }

@@ -93,7 +93,7 @@ public class ForexControllerTest {
         when(forexService.getCurrencyRateByDate(ArgumentMatchers.any(), ArgumentMatchers.any(String.class), ArgumentMatchers.any())).thenReturn(response);
 
         MvcResult result = mockMvc.perform(
-                MockMvcRequestBuilders.get("/api/2021-07-14?base=EUR&symbols=AED,AUD").accept(MediaType.APPLICATION_JSON)).andReturn();
+                MockMvcRequestBuilders.get("/api/date?date=2021-07-18&base=EUR&symbols=AUD").accept(MediaType.APPLICATION_JSON)).andReturn();
         MockHttpServletResponse resp = result.getResponse();
         JSONParser parser = new JSONParser();
         JSONObject jsonObject = (JSONObject) parser.parse(resp.getContentAsString());

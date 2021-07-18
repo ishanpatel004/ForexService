@@ -23,12 +23,12 @@ public class Commons {
         }
     }
 
-    public static java.sql.Timestamp parseTimestamp(String timestamp) {
-        try {
-            return new Timestamp(DATE_TIME_FORMAT.parse(timestamp).getTime());
-        } catch (ParseException e) {
-            throw new IllegalArgumentException(e);
-        }
+    public static boolean isBasePresent(String base) {
+        return base!=null && !base.isEmpty();
+    }
+
+    public static boolean isDatePresent(String date) {
+        return date!=null && !date.isEmpty();
     }
 
     public static boolean validateDate(String date) {
